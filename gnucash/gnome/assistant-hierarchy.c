@@ -1409,7 +1409,9 @@ starting_balance_helper (Account *account, hierarchy_data *data)
     if (gnc_reverse_balance(account))
         balance = gnc_numeric_neg(balance);
     if (!gnc_numeric_zero_p (balance) &&
-        gnc_commodity_is_currency (xaccAccountGetCommodity (account)))
+        gnc_commodity_is_currency (xaccAccountGetCommodity (account)) &&
+        xaccAccountGetType (account) != ACCT_TYPE_STOCK &&
+        xaccAccountGetType (account) != ACCT_TYPE_MUTUAL)
         gnc_account_create_opening_balance (account, balance, gnc_time (NULL),
                                             gnc_get_current_book ());
 }

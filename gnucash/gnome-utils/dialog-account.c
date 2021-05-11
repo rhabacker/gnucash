@@ -515,6 +515,13 @@ gnc_ui_to_account(AccountWindow *aw)
         return;
     }
 
+    if (xaccAccountGetType (account) == ACCT_TYPE_STOCK ||
+        xaccAccountGetType (account) == ACCT_TYPE_MUTUAL)
+    {
+        LEAVE("stock or mutual funds account");
+        return;
+    }
+
     if (gnc_reverse_balance (account))
         balance = gnc_numeric_neg (balance);
 
