@@ -124,6 +124,7 @@ typedef struct
 
     GncHierarchyAssistantFinishedCallback when_completed;
     int number_opening_balance_accounts;
+    gnc_commodity *com;
 } hierarchy_data;
 
 void on_prepare (GtkAssistant  *assistant, GtkWidget *page,
@@ -843,6 +844,27 @@ on_choose_account_categories_prepare (hierarchy_data  *data)
 }
 
 static void
+is_opening_balance_account (Account* account, gpointer data)
+{
+    hierarchy_data *d = (hierarchy_data*)data;
+    if (xaccAccountGetIsOpeningBalance (account) && gnc_commodity_equiv(d->com, xaccAccountGetCommodity(account))) {
+        d->number_opening_balance_accounts++;
+        fprintf (stderr,"%s %s\n", __FUNCTION__, xaccAccountGetName(account));
+    }
+}
+
+static void
+gnc_account_lookup_all_opening_balance (Account* account, hierarchy_data *data)
+{
+    gnc_account_foreach_descendant (account, is_opening_balance_account, (gpointer)data);
+}
+
+GSList *
+get_selected_account_list (GtkTreeView *tree_view);
+Account *
+hierarchy_merge_accounts (GSList *dalist, gnc_commodity *com);
+
+static void
 categories_tree_selection_changed (GtkTreeSelection *selection,
                                    hierarchy_data *data)
 {
@@ -874,6 +896,23 @@ categories_tree_selection_changed (GtkTreeSelection *selection,
         gtk_text_buffer_set_text(buffer, gea->long_description ?
                                  gea->long_description :
                                  _("No description provided."), -1);
+        {
+            GSList *actlist;
+            gnc_commodity *com;
+            Account *our_account_tree;
+            actlist = get_selected_account_list (data->categories_tree);
+            com = gnc_currency_edit_get_currency (GNC_CURRENCY_EDIT(data->currency_selector));
+            our_account_tree = hierarchy_merge_accounts (actlist, com);
+            data->com  = com;
+            data->number_opening_balance_accounts = 0;
+            gnc_account_lookup_all_opening_balance (our_account_tree, (gpointer)data);
+            xaccAccountBeginEdit (our_account_tree);
+            xaccAccountDestroy (our_account_tree);
+            if (data->number_opening_balance_accounts > 1) {
+                clear_all_clicked(NULL, data);
+                return;
+            }
+        }
 
         tree_view = gnc_tree_view_account_new_with_root (gea->root, FALSE);
         /* Override the normal fixed (user settable) sizing */
@@ -1017,7 +1056,7 @@ add_new_accounts_with_random_guids (Account *into, Account *from,
     gnc_account_foreach_child (from, add_groups_for_each, &data);
 }
 
-static Account *
+Account *
 hierarchy_merge_accounts (GSList *dalist, gnc_commodity *com)
 {
     GSList *mark;
@@ -1054,8 +1093,7 @@ accumulate_accounts (GtkListStore *store,
     return FALSE;  /* Run entire list */
 }
 
-
-static GSList *
+GSList *
 get_selected_account_list (GtkTreeView *tree_view)
 {
     GSList *actlist = NULL;
